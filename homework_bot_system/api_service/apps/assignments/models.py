@@ -4,7 +4,8 @@ from django.utils import timezone
 from core.models import BaseModel, SoftDeleteModel
 
 
-class Assignment(SoftDeleteModel):
+# إضافة الحقول الناقصة
+class Assignment(BaseModel):
     """نموذج الواجب"""
     
     class Priority(models.TextChoices):
@@ -59,24 +60,9 @@ class Assignment(SoftDeleteModel):
         verbose_name='الحالة'
     )
     
-    points_reward = models.IntegerField(
-        default=10,
-        validators=[MinValueValidator(1), MaxValueValidator(100)],
-        verbose_name='نقاط المكافأة'
-    )
-    
-    excellence_points = models.IntegerField(
-        default=5,
-        validators=[MinValueValidator(0), MaxValueValidator(50)],
-        verbose_name='نقاط التميز'
-    )
-    
-    penalty_points = models.IntegerField(
-        default=5,
-        validators=[MinValueValidator(0), MaxValueValidator(50)],
-        verbose_name='نقاط العقوبة'
-    )
-    
+    points_reward = models.IntegerField(default=10, verbose_name='نقاط المكافأة')
+    excellence_points = models.IntegerField(default=5, verbose_name='نقاط التميز')
+    penalty_points = models.IntegerField(default=5, verbose_name='نقاط العقوبة')
     max_submissions = models.IntegerField(
         default=1,
         validators=[MinValueValidator(1)],

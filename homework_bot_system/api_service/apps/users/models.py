@@ -187,3 +187,21 @@ class User(AbstractUser, BaseModel):
         self.penalty_counter = max(0, self.penalty_counter - 1)
         self.is_muted = self.penalty_counter > 0
         self.save(update_fields=['penalty_counter', 'is_muted'])
+    
+    # إضافة منطق العداد الذكي
+    class User(AbstractUser):
+        def update_penalty_counter(self, change):
+            """تحديث عداد العقوبات بذكاء"""
+            self.penalty_counter = max(0, self.penalty_counter + change)
+            self.is_muted = self.penalty_counter > 0
+            self.save()
+            
+            # إرسال إشعار إذا تم كتم الصوت
+            if self.is_muted and change > 0:
+                from apps.notifications.models import Notification
+                Notification.objects.create(
+                    user=self,
+                    notification_type='penalty',
+                    title='تم كتم صوتك',
+                    message=f'تم كتم صوتك بسبب تجاوز حد العقوبات ({self.penalty_counter})'
+                )
