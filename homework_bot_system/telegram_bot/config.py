@@ -31,8 +31,10 @@ MESSAGES = {
 API_ENDPOINTS = {
     'auth': '/auth/telegram/',
     'assignments': '/assignments/',
-    'competitions': '/competitions/',
     'submissions': '/submissions/',
+    'competitions': '/competitions/',
     'stats': '/analytics/user-stats/',
-    'badges': '/badges/'
+    'badges': '/badges/',
+    'leaderboard': '/analytics/leaderboard/',
+    'notifications': '/notifications/'
 }

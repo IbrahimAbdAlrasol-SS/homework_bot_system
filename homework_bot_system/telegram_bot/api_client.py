@@ -69,3 +69,32 @@ class APIClient:
             'file_url': file_url
         }
         return await self._make_request('POST', API_ENDPOINTS['submissions'], headers=headers, json=data)
+
+    async def get_assignment_details(self, assignment_id: int) -> Optional[Dict]:
+        """جلب تفاصيل واجب محدد"""
+        return await self._make_request('GET', f"{API_ENDPOINTS['assignments']}{assignment_id}/")
+    
+    async def get_competition_details(self, competition_id: int) -> Optional[Dict]:
+        """جلب تفاصيل مسابقة محددة"""
+        return await self._make_request('GET', f"{API_ENDPOINTS['competitions']}{competition_id}/")
+    
+    async def join_competition(self, user_token: str, competition_id: int) -> Optional[Dict]:
+        """الانضمام لمسابقة"""
+        headers = {'Authorization': f'Bearer {user_token}'}
+        data = {'competition': competition_id}
+        return await self._make_request('POST', f"{API_ENDPOINTS['competitions']}{competition_id}/join/", headers=headers, json=data)
+    
+    async def get_leaderboard(self, competition_id: int = None) -> List[Dict]:
+        """جلب لوحة المتصدرين"""
+        endpoint = API_ENDPOINTS['leaderboard']
+        if competition_id:
+            endpoint += f"?competition={competition_id}"
+        
+        result = await self._make_request('GET', endpoint)
+        return result.get('results', []) if result else []
+    
+    async def get_user_badges(self, user_token: str) -> List[Dict]:
+        """جلب شارات المستخدم"""
+        headers = {'Authorization': f'Bearer {user_token}'}
+        result = await self._make_request('GET', API_ENDPOINTS['badges'], headers=headers)
+        return result.get('results', []) if result else []
