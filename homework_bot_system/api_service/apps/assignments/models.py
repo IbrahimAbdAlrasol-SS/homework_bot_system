@@ -1,3 +1,5 @@
+# homework_bot_system/api_service/apps/assignments/models.py
+# إصلاح تضارب أسماء الحقول
 
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -6,7 +8,7 @@ from core.models import BaseModel
 
 
 class Assignment(BaseModel):
-    """نموذج الواجب المصحح"""
+    """نموذج الواجب المصحح - توحيد الأسماء"""
     
     class Priority(models.TextChoices):
         LOW = 'low', 'منخفضة'
@@ -28,11 +30,10 @@ class Assignment(BaseModel):
         verbose_name='وصف الواجب'
     )
     
-    # إضافة حقل المادة المفقود
+    # ✅ إضافة حقل المادة المفقود
     subject = models.CharField(
         max_length=100,
-        verbose_name='المادة',
-        help_text='اسم المادة الدراسية'
+        verbose_name='المادة'
     )
     
     section = models.ForeignKey(
@@ -49,7 +50,7 @@ class Assignment(BaseModel):
         verbose_name='منشئ الواجب'
     )
     
-    # إصلاح تضارب الأسماء - استخدام due_date بدلاً من deadline
+    # ✅ توحيد الاسم - استخدام due_date
     due_date = models.DateTimeField(
         verbose_name='الموعد النهائي'
     )
@@ -68,8 +69,8 @@ class Assignment(BaseModel):
         verbose_name='الحالة'
     )
     
-    # نظام النقاط المحسن
-    points_value = models.IntegerField(  # ✅ توحيد الاسم
+    # ✅ توحيد نظام النقاط
+    points_value = models.IntegerField(
         default=10,
         validators=[MinValueValidator(1)],
         verbose_name='نقاط الواجب'
@@ -87,7 +88,7 @@ class Assignment(BaseModel):
         verbose_name='نقاط العقوبة'
     )
     
-    # إضافة حقل الحد الأقصى للتسليمات
+    # ✅ إضافة الحد الأقصى للتسليمات
     max_submissions = models.IntegerField(
         default=1,
         validators=[MinValueValidator(1)],
@@ -123,31 +124,11 @@ class Assignment(BaseModel):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['section', 'status']),
-            models.Index(fields=['due_date']),  # ✅ إصلاح الفهرس
+            models.Index(fields=['due_date']),  # ✅ اسم صحيح
             models.Index(fields=['priority']),
             models.Index(fields=['created_by']),
             models.Index(fields=['subject']),
         ]
-    
-    @property
-    def is_overdue(self):
-        """تحقق من انتهاء الموعد النهائي"""
-        return timezone.now() > self.due_date  # ✅ إصلاح الاسم
-    
-    @property
-    def time_remaining(self):
-        """الوقت المتبقي للموعد النهائي"""
-        if self.is_overdue:
-            return None
-        return self.due_date - timezone.now()  # ✅ إصلاح الاسم
-    
-    def days_until_due(self):
-        """عدد الأيام حتى الموعد النهائي"""
-        if self.is_overdue:
-            return 0
-        
-        time_diff = self.due_date - timezone.now()  # ✅ إصلاح الاسم
-        return time_diff.days
     
     def __str__(self):
         return f"{self.title} - {self.section.name}"
@@ -155,14 +136,22 @@ class Assignment(BaseModel):
     @property
     def is_overdue(self):
         """تحقق من انتهاء الموعد النهائي"""
-        return timezone.now() > self.deadline
+        return timezone.now() > self.due_date  # ✅ اسم صحيح
     
     @property
     def time_remaining(self):
         """الوقت المتبقي للموعد النهائي"""
         if self.is_overdue:
             return None
-        return self.deadline - timezone.now()
+        return self.due_date - timezone.now()  # ✅ اسم صحيح
+    
+    @property
+    def days_until_due(self):
+        """عدد الأيام حتى الموعد النهائي"""
+        if self.is_overdue:
+            return 0
+        time_diff = self.due_date - timezone.now()
+        return time_diff.days
     
     @property
     def submission_count(self):
@@ -177,6 +166,9 @@ class Assignment(BaseModel):
     @property
     def submission_rate(self):
         """معدل التسليم"""
+        if not hasattr(self, 'section') or not self.section:
+            return 0
+            
         total_students = self.section.students.filter(
             status='active',
             role='student'
@@ -192,7 +184,7 @@ class Assignment(BaseModel):
         return self.submissions.filter(student=student).first()
     
     def can_submit(self, student):
-        """تحقق من إمكانية التسليم - محسن"""
+        """تحقق من إمكانية التسليم"""
         # فحص حالة الواجب
         if self.status != self.Status.PUBLISHED:
             return False, "الواجب غير منشور"
@@ -213,8 +205,8 @@ class Assignment(BaseModel):
         return True, "يمكن التسليم"
     
     def calculate_points(self, is_late=False, is_excellent=False):
-        """حساب النقاط للتسليم - محسن"""
-        points = self.points_value  # ✅ استخدام الاسم الموحد
+        """حساب النقاط للتسليم"""
+        points = self.points_value
         
         # إضافة نقاط التميز
         if is_excellent:
@@ -238,3 +230,39 @@ class Assignment(BaseModel):
         return emojis.get(self.priority, '⚪')
 
 
+class AssignmentFile(BaseModel):
+    """ملفات الواجب"""
+    
+    assignment = models.ForeignKey(
+        Assignment,
+        on_delete=models.CASCADE,
+        related_name='files',
+        verbose_name='الواجب'
+    )
+    
+    file = models.FileField(
+        upload_to='assignments/',
+        verbose_name='الملف'
+    )
+    
+    file_name = models.CharField(
+        max_length=255,
+        verbose_name='اسم الملف'
+    )
+    
+    file_size = models.BigIntegerField(
+        verbose_name='حجم الملف'
+    )
+    
+    uploaded_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='تاريخ الرفع'
+    )
+    
+    class Meta:
+        verbose_name = 'ملف واجب'
+        verbose_name_plural = 'ملفات الواجبات'
+        db_table = 'assignment_files'
+    
+    def __str__(self):
+        return f"{self.file_name} - {self.assignment.title}"
