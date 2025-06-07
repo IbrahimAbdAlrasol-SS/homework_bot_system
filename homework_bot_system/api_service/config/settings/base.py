@@ -14,13 +14,32 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 
 # Application definition
-DJANGO_APPS = [
+INSTALLED_APPS = [
+    # Django apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
+    # Third party apps
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'corsheaders',
+    'django_filters',
+    'drf_spectacular',
+    'django_celery_beat',
+    
+    # Local apps
+    'core',
+    'apps.users',
+    'apps.sections',
+    'apps.assignments',
+    'apps.submissions',
+    'apps.competitions',  # إضافة تطبيق المسابقات الجديد
+    'apps.badges',
+    'apps.analytics',
 ]
 
 THIRD_PARTY_APPS = [
