@@ -1,12 +1,12 @@
+
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
-from core.models import BaseModel, SoftDeleteModel
+from core.models import BaseModel
 
 
-# إضافة الحقول الناقصة
 class Assignment(BaseModel):
-    """نموذج الواجب"""
+    """نموذج الواجب المصحح"""
     
     class Priority(models.TextChoices):
         LOW = 'low', 'منخفضة'
@@ -28,6 +28,13 @@ class Assignment(BaseModel):
         verbose_name='وصف الواجب'
     )
     
+    # إضافة حقل المادة المفقود
+    subject = models.CharField(
+        max_length=100,
+        verbose_name='المادة',
+        help_text='اسم المادة الدراسية'
+    )
+    
     section = models.ForeignKey(
         'sections.Section',
         on_delete=models.CASCADE,
@@ -42,7 +49,8 @@ class Assignment(BaseModel):
         verbose_name='منشئ الواجب'
     )
     
-    deadline = models.DateTimeField(
+    # إصلاح تضارب الأسماء - استخدام due_date بدلاً من deadline
+    due_date = models.DateTimeField(
         verbose_name='الموعد النهائي'
     )
     
@@ -60,9 +68,26 @@ class Assignment(BaseModel):
         verbose_name='الحالة'
     )
     
-    points_reward = models.IntegerField(default=10, verbose_name='نقاط المكافأة')
-    excellence_points = models.IntegerField(default=5, verbose_name='نقاط التميز')
-    penalty_points = models.IntegerField(default=5, verbose_name='نقاط العقوبة')
+    # نظام النقاط المحسن
+    points_value = models.IntegerField(  # ✅ توحيد الاسم
+        default=10,
+        validators=[MinValueValidator(1)],
+        verbose_name='نقاط الواجب'
+    )
+    
+    excellence_points = models.IntegerField(
+        default=5,
+        validators=[MinValueValidator(0)],
+        verbose_name='نقاط التميز'
+    )
+    
+    penalty_points = models.IntegerField(
+        default=5,
+        validators=[MinValueValidator(0)],
+        verbose_name='نقاط العقوبة'
+    )
+    
+    # إضافة حقل الحد الأقصى للتسليمات
     max_submissions = models.IntegerField(
         default=1,
         validators=[MinValueValidator(1)],
@@ -77,7 +102,7 @@ class Assignment(BaseModel):
     late_penalty_percentage = models.IntegerField(
         default=50,
         validators=[MinValueValidator(0), MaxValueValidator(100)],
-        verbose_name='نسبة عقوبة التأخير'
+        verbose_name='نسبة عقوبة التأخير (%)'
     )
     
     is_active = models.BooleanField(
@@ -98,10 +123,31 @@ class Assignment(BaseModel):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['section', 'status']),
-            models.Index(fields=['deadline']),
+            models.Index(fields=['due_date']),  # ✅ إصلاح الفهرس
             models.Index(fields=['priority']),
             models.Index(fields=['created_by']),
+            models.Index(fields=['subject']),
         ]
+    
+    @property
+    def is_overdue(self):
+        """تحقق من انتهاء الموعد النهائي"""
+        return timezone.now() > self.due_date  # ✅ إصلاح الاسم
+    
+    @property
+    def time_remaining(self):
+        """الوقت المتبقي للموعد النهائي"""
+        if self.is_overdue:
+            return None
+        return self.due_date - timezone.now()  # ✅ إصلاح الاسم
+    
+    def days_until_due(self):
+        """عدد الأيام حتى الموعد النهائي"""
+        if self.is_overdue:
+            return 0
+        
+        time_diff = self.due_date - timezone.now()  # ✅ إصلاح الاسم
+        return time_diff.days
     
     def __str__(self):
         return f"{self.title} - {self.section.name}"
@@ -139,80 +185,56 @@ class Assignment(BaseModel):
         if total_students == 0:
             return 0
         
-        return (self.approved_submission_count / total_students) * 100
+        return (self.submission_count / total_students) * 100
     
     def get_student_submission(self, student):
         """الحصول على تسليم الطالب"""
         return self.submissions.filter(student=student).first()
     
     def can_submit(self, student):
-        """تحقق من إمكانية التسليم"""
+        """تحقق من إمكانية التسليم - محسن"""
+        # فحص حالة الواجب
         if self.status != self.Status.PUBLISHED:
             return False, "الواجب غير منشور"
         
+        # فحص الموعد النهائي
         if not self.allow_late_submission and self.is_overdue:
             return False, "انتهى الموعد النهائي"
         
+        # فحص عدد التسليمات
         student_submissions = self.submissions.filter(student=student).count()
         if student_submissions >= self.max_submissions:
-            return False, "تم الوصول للحد الأقصى من التسليمات"
+            return False, f"تم الوصول للحد الأقصى من التسليمات ({self.max_submissions})"
+        
+        # فحص حالة الطالب
+        if student.is_muted:
+            return False, "لا يمكنك التسليم بسبب الكتم"
         
         return True, "يمكن التسليم"
     
     def calculate_points(self, is_late=False, is_excellent=False):
-        """حساب النقاط للتسليم"""
-        points = self.points_reward
+        """حساب النقاط للتسليم - محسن"""
+        points = self.points_value  # ✅ استخدام الاسم الموحد
         
+        # إضافة نقاط التميز
         if is_excellent:
             points += self.excellence_points
         
+        # خصم نقاط التأخير
         if is_late and self.allow_late_submission:
             penalty = (points * self.late_penalty_percentage) // 100
-            points -= penalty
+            points = max(0, points - penalty)
         
-        return max(0, points)
+        return points
+    
+    def get_priority_emoji(self):
+        """الحصول على رمز الأولوية"""
+        emojis = {
+            'low': '🟢',
+            'medium': '🟡', 
+            'high': '🔴',
+            'urgent': '🚨'
+        }
+        return emojis.get(self.priority, '⚪')
 
 
-class AssignmentFile(BaseModel):
-    """ملفات الواجب"""
-    
-    assignment = models.ForeignKey(
-        Assignment,
-        on_delete=models.CASCADE,
-        related_name='files',
-        verbose_name='الواجب'
-    )
-    
-    file_name = models.CharField(
-        max_length=255,
-        verbose_name='اسم الملف'
-    )
-    
-    file_url = models.URLField(
-        max_length=500,
-        verbose_name='رابط الملف'
-    )
-    
-    file_size = models.BigIntegerField(
-        verbose_name='حجم الملف بالبايت'
-    )
-    
-    file_type = models.CharField(
-        max_length=50,
-        verbose_name='نوع الملف'
-    )
-    
-    telegram_file_id = models.CharField(
-        max_length=200,
-        null=True,
-        blank=True,
-        verbose_name='معرف ملف التلكرام'
-    )
-    
-    class Meta:
-        verbose_name = 'ملف واجب'
-        verbose_name_plural = 'ملفات الواجبات'
-        db_table = 'assignment_files'
-    
-    def __str__(self):
-        return f"{self.file_name} - {self.assignment.title}"

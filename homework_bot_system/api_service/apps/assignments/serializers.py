@@ -20,28 +20,13 @@ class AssignmentSerializer(serializers.ModelSerializer):
         model = Assignment
         fields = [
             'id', 'title', 'description', 'section', 'section_name',
-            'created_by', 'created_by_name', 'due_date', 'priority',
-            'status', 'max_points', 'allow_late_submission',
+            'created_by', 'created_by_name', 'due_date', 'priority',  # ✅ إصلاح الاسم
+            'status', 'points_value', 'allow_late_submission',  # ✅ توحيد النقاط
             'late_penalty_per_day', 'is_active', 'files',
             'submissions_count', 'pending_submissions',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['created_by', 'submissions_count', 'pending_submissions']
-    
-    def create(self, validated_data):
-        validated_data['created_by'] = self.context['request'].user
-        return super().create(validated_data)
-
-class AssignmentDetailSerializer(AssignmentSerializer):
-    recent_submissions = serializers.SerializerMethodField()
-    
-    class Meta(AssignmentSerializer.Meta):
-        fields = AssignmentSerializer.Meta.fields + ['recent_submissions']
-    
-    def get_recent_submissions(self, obj):
-        from apps.submissions.serializers import SubmissionSerializer
-        recent = obj.submissions.select_related('user').order_by('-created_at')[:5]
-        return SubmissionSerializer(recent, many=True).data
 
 class CreateAssignmentSerializer(serializers.ModelSerializer):
     files = serializers.ListField(
@@ -53,10 +38,16 @@ class CreateAssignmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Assignment
         fields = [
-            'title', 'description', 'section', 'due_date',
-            'priority', 'max_points', 'allow_late_submission',
+            'title', 'description', 'section', 'due_date',  # ✅ إصلاح الاسم
+            'priority', 'points_value', 'allow_late_submission',  # ✅ توحيد النقاط
             'late_penalty_per_day', 'files'
         ]
+    
+    def validate_due_date(self, value):
+        """التحقق من صحة الموعد النهائي"""
+        if value <= timezone.now():
+            raise serializers.ValidationError("الموعد النهائي يجب أن يكون في المستقبل")
+        return value
     
     def create(self, validated_data):
         files_data = validated_data.pop('files', [])

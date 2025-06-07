@@ -37,9 +37,11 @@ INSTALLED_APPS = [
     'apps.sections',
     'apps.assignments',
     'apps.submissions',
-    'apps.competitions',  # إضافة تطبيق المسابقات الجديد
+    'apps.competitions',
     'apps.badges',
     'apps.analytics',
+    'apps.authentication',
+    'apps.notifications',  # إضافة التطبيق الجديد
 ]
 
 THIRD_PARTY_APPS = [
@@ -56,11 +58,14 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     'core',
     'apps.users',
-    'apps.sections',
+    'apps.sections', 
     'apps.assignments',
     'apps.submissions',
+    'apps.competitions',
     'apps.badges',
     'apps.analytics',
+    'apps.authentication',
+    'apps.notifications',  # إضافة التطبيق الجديد
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

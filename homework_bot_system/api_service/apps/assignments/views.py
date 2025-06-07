@@ -24,7 +24,18 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         return AssignmentSerializer
     
     def get_queryset(self):
-        queryset = Assignment.objects.select_related('section', 'created_by')
+        queryset = Assignment.objects.select_related(
+            'section', 'created_by'
+        ).prefetch_related(
+            'submissions__student'
+        )
+        
+        # تطبيق الفلاتر
+        section_id = self.request.query_params.get('section')
+        if section_id:
+            queryset = queryset.filter(section_id=section_id)
+            
+        return queryset
         
         # Filter by section if user is section admin
         if self.request.user.role == User.Role.SECTION_ADMIN:
@@ -98,6 +109,37 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         }
         
         return Response(stats)
+    
+    @action(detail=True, methods=['get'])
+    def details(self, request, pk=None):
+        """تفاصيل الواجب مع معالجة أخطاء محسنة"""
+        try:
+            assignment = self.get_object()
+        except Assignment.DoesNotExist:
+            return Response(
+                {'error': 'الواجب غير موجود'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # فحص الصلاحيات
+        if not self._has_assignment_access(request.user, assignment):
+            return Response(
+                {'error': 'ليس لديك صلاحية للوصول لهذا الواجب'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = AssignmentDetailSerializer(assignment)
+        return Response({
+            'assignment': serializer.data,
+            'is_overdue': assignment.due_date < timezone.now(),  # ✅ إصلاح الاسم
+            'days_remaining': (assignment.due_date - timezone.now()).days if assignment.due_date > timezone.now() else 0
+        })
+    
+    def _has_assignment_access(self, user, assignment):
+        """فحص صلاحية الوصول للواجب"""
+        if user.is_admin:
+            return True
+        return user.section == assignment.section
 
 class UpcomingAssignmentsView(APIView):
     permission_classes = [permissions.IsAuthenticated]

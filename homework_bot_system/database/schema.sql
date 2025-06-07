@@ -2,12 +2,14 @@
 CREATE DATABASE homework_bot_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE homework_bot_db;
 
--- جدول المستخدمين
+-- جدول المستخدمين المصحح
 CREATE TABLE users (
     id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(150) UNIQUE NOT NULL,
+    first_name VARCHAR(150) NOT NULL,
+    last_name VARCHAR(150) NOT NULL,
+    email VARCHAR(254),
     telegram_id BIGINT UNIQUE NOT NULL,
-    full_name VARCHAR(255) NOT NULL,
-    username VARCHAR(100),
     section_id INT,
     role ENUM('super_admin', 'section_admin', 'student') DEFAULT 'student',
     personality ENUM('serious', 'friendly', 'motivator', 'sarcastic') DEFAULT 'friendly',
@@ -17,15 +19,18 @@ CREATE TABLE users (
     submission_streak INT DEFAULT 0,
     is_muted BOOLEAN DEFAULT FALSE,
     profile_photo_url VARCHAR(500),
-    registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     status ENUM('active', 'inactive', 'banned') DEFAULT 'active',
+    is_active BOOLEAN DEFAULT TRUE,
+    date_joined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
     INDEX idx_telegram_id (telegram_id),
     INDEX idx_section_id (section_id),
     INDEX idx_role (role),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_points (points)
 );
 
 -- جدول الشعب
@@ -46,24 +51,36 @@ CREATE TABLE sections (
     INDEX idx_active (is_active)
 );
 
--- جدول الواجبات
+-- جدول الواجبات المصحح
 CREATE TABLE assignments (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    title VARCHAR(255) NOT NULL,
+    title VARCHAR(200) NOT NULL,
     description TEXT,
-    subject VARCHAR(100) NOT NULL,
+    subject VARCHAR(100) NOT NULL,  -- إضافة المادة
     section_id INT NOT NULL,
-    deadline TIMESTAMP NOT NULL,
     created_by INT NOT NULL,
-    points_value INT DEFAULT 10,
+    due_date TIMESTAMP NOT NULL,  -- توحيد الاسم
+    priority ENUM('low', 'medium', 'high', 'urgent') DEFAULT 'medium',
+    status ENUM('draft', 'published', 'closed') DEFAULT 'draft',
+    points_value INT DEFAULT 10,  -- توحيد الاسم
+    excellence_points INT DEFAULT 5,
+    penalty_points INT DEFAULT 5,
+    max_submissions INT DEFAULT 1,  -- إضافة الحد الأقصى
+    allow_late_submission BOOLEAN DEFAULT FALSE,
+    late_penalty_percentage INT DEFAULT 50,  -- إضافة نسبة العقوبة
     is_active BOOLEAN DEFAULT TRUE,
+    telegram_message_id BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
     FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_section_deadline (section_id, deadline),
+    
+    INDEX idx_section_status (section_id, status),
+    INDEX idx_due_date (due_date),
+    INDEX idx_priority (priority),
     INDEX idx_created_by (created_by),
-    INDEX idx_active (is_active)
+    INDEX idx_subject (subject)
 );
 
 -- جدول التسليمات
@@ -225,21 +242,33 @@ CREATE TABLE bot_sessions (
 );
 
 -- جدول الإشعارات
+-- تحديث جدول assignments
+ALTER TABLE assignments RENAME COLUMN due_date TO deadline;
+
+-- حذف الجداول المكررة
+DROP TABLE IF EXISTS competitions_duplicate;
+DROP TABLE IF EXISTS competition_participants_duplicate;
+
+-- إنشاء جدول notifications
 CREATE TABLE notifications (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT NOT NULL,
-    type ENUM('assignment', 'deadline', 'achievement', 'penalty', 'system') NOT NULL,
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    notification_type VARCHAR(50) NOT NULL,
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
-    is_read BOOLEAN DEFAULT FALSE,
-    is_sent BOOLEAN DEFAULT FALSE,
-    scheduled_at TIMESTAMP NULL,
-    sent_at TIMESTAMP NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    scheduled_at TIMESTAMP,
+    sent_at TIMESTAMP,
+    read_at TIMESTAMP,
+    extra_data JSONB DEFAULT '{}',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_user_read (user_id, is_read),
-    INDEX idx_scheduled (scheduled_at)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- إنشاء الفهارس
+CREATE INDEX idx_notifications_user_status ON notifications(user_id, status);
+CREATE INDEX idx_notifications_type ON notifications(notification_type);
+CREATE INDEX idx_notifications_scheduled ON notifications(scheduled_at);
 
 -- جدول معدل الطلبات (Rate Limiting)
 CREATE TABLE rate_limits (
@@ -252,3 +281,10 @@ CREATE TABLE rate_limits (
     UNIQUE KEY unique_identifier_action (identifier, action),
     INDEX idx_expires (expires_at)
 );
+
+
+-- إضافة constraints مفقودة
+ALTER TABLE users ADD CONSTRAINT chk_points_positive CHECK (points >= 0);
+ALTER TABLE users ADD CONSTRAINT chk_penalty_positive CHECK (penalty_counter >= 0);
+ALTER TABLE assignments ADD CONSTRAINT chk_points_value_positive CHECK (points_value > 0);
+ALTER TABLE assignments ADD CONSTRAINT chk_max_submissions_positive CHECK (max_submissions > 0);
