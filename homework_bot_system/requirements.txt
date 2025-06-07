@@ -1,0 +1,44 @@
+# Django Framework
+Django>=4.2.0,<5.0.0
+
+# Django REST Framework
+djangorestframework>=3.14.0
+djangorestframework-simplejwt>=5.2.0
+
+# Database
+mysqlclient>=2.1.0
+
+# Environment Variables
+python-decouple>=3.8
+
+# CORS Headers
+django-cors-headers>=4.0.0
+
+# Filtering
+django-filter>=23.0
+
+# API Documentation
+drf-spectacular>=0.26.0
+
+# Celery for Background Tasks
+celery>=5.3.0
+django-celery-beat>=2.5.0
+django-celery-results>=2.5.0
+redis>=4.5.0
+
+# File Handling
+Pillow>=10.0.0
+
+# Telegram Bot
+python-telegram-bot>=20.0
+
+# Utilities
+requests>=2.31.0
+pytz>=2023.3
+
+# Development Dependencies
+# Uncomment for development
+# django-debug-toolbar>=4.0.0
+# pytest>=7.4.0
+# pytest-django>=4.5.0
+# factory-boy>=3.3.0
